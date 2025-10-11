@@ -73,6 +73,23 @@
             min-width: 90px;
         }
 
+        #transition-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, transparent 0%, #000000 100%);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 999;
+    transition: opacity 0.6s ease-in-out;
+}
+
+#transition-overlay.active {
+    opacity: 1;
+}
+
         .category-filter {
             position: fixed;
             top: 20px;
@@ -139,6 +156,24 @@
             animation: fadeIn 0.4s ease;
         }
 
+        .modal .category-badge {
+            display: inline-flex;
+            gap: 10px;
+            padding: 10px 14px;
+            margin-right: 12px;
+            transform: none;
+        }
+
+        .modal .category-badge:hover {
+            transform: translateX(0);
+            box-shadow: 0 6px 25px rgba(201, 169, 97, 0.25);
+        }
+
+        #speakText {
+            color: #ffffff;
+            font-weight: 700;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -196,7 +231,6 @@
             padding: 15px;
             background: linear-gradient(to top, rgba(0, 0, 0, 0.95), transparent);
             color: #c9a961;
-            text-align: center;
             font-family: 'Cinzel', serif;
             font-size: 0.95rem;
             letter-spacing: 2px;
@@ -334,6 +368,41 @@
             box-shadow: 0 10px 35px rgba(201, 169, 97, 0.4);
         }
 
+        .name-label {
+    position: fixed;
+    color: white;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 4px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 999; /* Modalın altında kalsın (modal z-index: 1000) */
+    transition: opacity 0.2s ease;
+}
+
+.name-label.hidden {
+    display: none !important;
+}
+
+.comment-bubble {
+    position: fixed;
+    color: #000000; /* Siyah yazı */
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 8px;
+    background: rgba(255, 255, 255, 0.95); /* Beyaz arka plan */
+    padding: 4px 8px;
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 500;
+    border: 2px ; /* Kategori rengine göre border */
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* Derinlik için gölge */
+}
+
+
+
+
         @media (max-width: 768px) {
             .hud, .category-filter {
                 max-width: calc(100% - 40px);
@@ -358,11 +427,7 @@
     </style>
 </head>
 <body>
-    <div class="loading" id="loading">
-        <div class="loader"></div>
-        <div class="loading-text">Kristaller İnşa Ediliyor...</div>
-    </div>
-
+    <div id="transition-overlay"></div>
     <div id="canvas-container"></div>
 
     <div class="hud">
@@ -375,13 +440,8 @@
         </div>
     </div>
 
-    <div class="category-filter">
-        <h4>📂 Kristal Türleri</h4>
-        <div class="category-badges" id="categoryBadges"></div>
-    </div>
-
     <button class="back-button" onclick="window.location.href='index.html'">
-        ← Kadim Kapı
+        ← Zaman Tüneli
     </button>
 
     <div class="modal" id="modal">
@@ -393,34 +453,371 @@
             </div>
             <div class="modal-body">
                 <span class="modal-category" id="modalCategory"></span>
+                <button class="speak-button category-badge" id="speakButton" style="display:inline-flex;align-items:center;gap:10px;">
+                    <span id="speakIcon">🔊</span>
+                    <span id="speakText">Seslendir</span>
+                </button>
                 <h2 class="modal-title" id="modalTitle"></h2>
                 <p class="modal-content-text" id="modalContentText"></p>
             </div>
         </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="loader"></div>
+        <div class="loading-text">Anadolu'nun Tarihini Yüklüyoruz...</div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         let scene, camera, renderer, raycaster, mouse;
         let newsData = [];
+        let allNewsData = [];
         let paintings = [];
+        let doors = [];
+        let doorAnimations = [];
+        let currentRoomCategory = null;
         let isMouseDown = false;
         let previousMousePosition = { x: 0, y: 0 };
         let cameraRotation = { x: 0, y: 0 };
         let moveState = { forward: false, backward: false, left: false, right: false };
         let velocity = new THREE.Vector3();
+        let ceilingStructure = new THREE.Group();
+        let npcs = [];
+        let rooms = [{ x: 0, z: 0, category: 'main' }];
         const moveSpeed = 0.1;
+        let ceilingAnimations = []; // Yeni animasyon dizisi
+let highlightedPainting = null;
+
 
         const categoryColors = {
-            'darbe': '#ff4757',
-            'deprem': '#e74c3c',
-            'koronavirüs': '#9b59b6',
-            'spor': '#2ed573',
-            'kültür': '#a29bfe',
+            'darbe': '#d35400', 
+            'deprem': '#e74c3c', 
+            'koronavirüs': '#f1c40f', 
+            'spor': '#8e44ad', 
+            'kültür': '#1abc9c',
             'eğitim': '#3498db',
-            'iklim': '#1abc9c',
-            'teknoloji': '#5352ed'
+            'iklim': '#2ecc71', 
+            'teknoloji': '#e67e22'
         };
+
+
+        const categoryComments = {
+    'darbe': ['📰 Tarih yazılıyor!', '⚖️ Adalet zamanı!', '📜 Unutulmaz anlar!'],
+    'deprem': ['🌍 Güçlü kalalım!', '🛠️ Yeniden inşa!', '🤝 Dayanışma zamanı!'],
+    'koronavirüs': ['😷 Maske tak!', '🩺 Sağlık öncelik!', '🧼 Temiz kal!'],
+    'spor': ['🏆 Zafer bizim!', '⚽ Gol zamanı!', '🏃‍♂️ Hızlı ol!'],
+    'kültür': ['🎨 Sanat hayatı!', '📚 Hikaye anlat!', '🎭 Kültür yaşar!'],
+    'eğitim': ['📖 Öğren, büyü!', '✏️ Gelecek senin!', '🎓 Bilgi güçtür!'],
+    'iklim': ['🌱 Yeşil gelecek!', '🌍 Dünyayı koru!', '♻️ Geri dönüşüm!'],
+    'teknoloji': ['💻 İnovasyon zamanı!', '🤖 Gelecek burada!', '🚀 Teknoloji uçurur!']
+};
+
+        class NPC {
+            constructor(position, color, category) {
+                this.position = position;
+                this.category = category || 'default';
+                this.speed = 0.4 + Math.random() * 0.4;
+                this.rotationSpeed = 0.03;
+                this.target = null;
+                this.stuckTimer = 0;
+                this.group = new THREE.Group();
+                this.name = this.generateRandomName();
+                
+                this.createModel(color);
+                this.createNameLabel();
+
+                this.createCommentBubble();
+                
+                this.animationTime = Math.random() * Math.PI * 2;
+                this.isWalking = false;
+                this.idleTimer = 0;
+                
+                this.group.position.copy(position);
+                this.pickNewTarget();
+                scene.add(this.group);
+            }
+
+            generateRandomName() {
+                const names = [
+                    "Ali", "Ayşe", "Mehmet", "Fatma", "Mustafa", "Zeynep", "Ahmet", "Emine",
+                    "Deniz", "Ege", "Can", "Elif", "Kaan", "Selin", "Baran", "Lale"
+                ];
+                return names[Math.floor(Math.random() * names.length)];
+            }
+
+createNameLabel() {
+    this.nameLabel = document.createElement('div');
+    this.nameLabel.className = 'name-label';
+    this.nameLabel.textContent = this.name;
+    this.nameLabel.style.opacity = '1'; 
+    this.nameLabel.style.pointerEvents = 'none';
+    document.body.appendChild(this.nameLabel);
+}
+
+createCommentBubble() {
+    this.commentBubble = document.createElement('div');
+    this.commentBubble.className = 'comment-bubble';
+    
+    // Kategoriye göre rastgele bir yorum seç
+    const comments = categoryComments[this.category] || ['💬 Merhaba!', '👋 Selam!', '🎯 Harika!'];
+    this.comment = comments[Math.floor(Math.random() * comments.length)];
+    
+    this.commentBubble.textContent = this.comment; // Şimdi this.comment tanımlı
+    this.commentBubble.style.opacity = '1';
+    this.commentBubble.style.pointerEvents = 'none';
+    this.commentBubble.style.borderColor = categoryColors[this.category] || '#c9a961';
+    document.body.appendChild(this.commentBubble);
+}
+
+updateNameLabelPosition() {
+    if (!this.nameLabel || !this.head) return;
+    
+    // Modal açıkken her ikisini de gizle
+    if (document.getElementById('modal').classList.contains('active')) {
+        this.nameLabel.style.opacity = '0';
+        if (this.commentBubble) this.commentBubble.style.opacity = '0';
+        return;
+    }
+
+    const vector = new THREE.Vector3();
+    vector.setFromMatrixPosition(this.head.matrixWorld);
+    vector.y += 0.4;
+    vector.project(camera);
+    const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+    const distance = camera.position.distanceTo(this.group.position);
+    
+    if (distance > 50 || vector.z > 1) {
+        this.nameLabel.style.opacity = '0';
+        if (this.commentBubble) this.commentBubble.style.opacity = '0';
+        return;
+    }
+
+    const scaleFactor = 1.0 / (distance / 5 + 0.5);
+    
+    // İsim etiketi
+    this.nameLabel.style.opacity = '1';
+    this.nameLabel.style.left = x + 'px';
+    this.nameLabel.style.top = y + 'px';
+    this.nameLabel.style.transform = `translate(-50%, -100%) scale(${scaleFactor})`;
+    
+    // Yorum bulutu (isim etiketinin sağına yerleştir)
+    if (this.commentBubble) {
+        this.commentBubble.style.opacity = '1';
+        this.commentBubble.style.left = (x + 60) + 'px'; // İsim etiketinin sağına 60px kaydır
+        this.commentBubble.style.top = y + 'px';
+        this.commentBubble.style.transform = `translate(0%, -100%) scale(${scaleFactor * 1.6})`; // Biraz daha küçük
+    }
+}
+
+            createModel(color) {
+                const primaryColor = color || 0xff6b6b;
+                const skinColor = 0xfce3c2;
+                const pantsColor = 0x555555;
+                const hairColor = 0x000000;
+                
+                const bodyMaterial = new THREE.MeshStandardMaterial({
+                    color: primaryColor,
+                    roughness: 0.8,
+                    metalness: 0.0
+                });
+                const headMaterial = new THREE.MeshStandardMaterial({
+                    color: skinColor,
+                    roughness: 0.7,
+                    metalness: 0.05
+                });
+                const legMaterial = new THREE.MeshStandardMaterial({
+                    color: pantsColor,
+                    roughness: 0.8,
+                    metalness: 0.1
+                });
+                const hairMaterial = new THREE.MeshStandardMaterial({
+                    color: hairColor,
+                    roughness: 0.5,
+                    metalness: 0.1
+                });
+
+                this.group.scale.set(0.7, 0.7, 0.7);
+                
+                const headSize = 0.35;
+                const headGeometry = new THREE.SphereGeometry(headSize, 32, 32);
+                this.head = new THREE.Mesh(headGeometry, headMaterial);
+                this.head.position.y = 1.0;
+                this.head.castShadow = true;
+                this.group.add(this.head);
+
+                const hairSize = headSize * 0.6;
+                const hairGeometry = new THREE.SphereGeometry(hairSize, 16, 16);
+                this.hair = new THREE.Mesh(hairGeometry, hairMaterial);
+                this.hair.position.y = 1.0 + headSize;
+                this.hair.scale.set(1.0, 0.6, 1.0);
+                this.hair.castShadow = true;
+                this.group.add(this.hair);
+                
+                const bodyHeight = 0.5;
+                const bodyGeometry = new THREE.BoxGeometry(0.5, bodyHeight, 0.3);
+                this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                this.body.position.y = 0.40;
+                this.body.castShadow = true;
+                this.group.add(this.body);
+
+                const eyeSize = 0.08;
+                const headZOffset = headSize + 0.01;
+                const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const eyeGeometry = new THREE.CircleGeometry(eyeSize, 32);
+                
+                this.leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                this.leftEye.position.set(-0.12, 1.05, headZOffset);
+                this.rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                this.rightEye.position.set(0.12, 1.05, headZOffset);
+                this.group.add(this.leftEye, this.rightEye);
+
+                const armSize = 0.08;
+                const armLength = 0.3;
+                const armGeometry = new THREE.CylinderGeometry(armSize, armSize, armLength, 16);
+                
+                this.leftArm = new THREE.Mesh(armGeometry, bodyMaterial);
+                this.leftArm.position.set(-0.32, 0.4, 0);
+                this.leftArm.rotation.z = Math.PI * 0.05;
+                this.leftArm.castShadow = true;
+                this.group.add(this.leftArm);
+
+                this.rightArm = new THREE.Mesh(armGeometry, bodyMaterial);
+                this.rightArm.position.set(0.32, 0.4, 0);
+                this.rightArm.rotation.z = -Math.PI * 0.05;
+                this.rightArm.castShadow = true;
+                this.group.add(this.rightArm);
+
+                const legLength = 0.2;
+                const legGeometry = new THREE.CylinderGeometry(0.12, 0.1, legLength, 16);
+                
+                this.leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                this.leftLeg.position.set(-0.15, 0.1 + legLength / 2, 0);
+                this.leftLeg.castShadow = true;
+                this.group.add(this.leftLeg);
+
+                this.rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                this.rightLeg.position.set(0.15, 0.1 + legLength / 2, 0);
+                this.rightLeg.castShadow = true;
+                this.group.add(this.rightLeg);
+
+                const footGeometry = new THREE.CylinderGeometry(0.14, 0.14, 0.05, 32);
+                const footMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x1a1a1a,
+                    roughness: 0.8,
+                    metalness: 0.2
+                });
+                this.leftFoot = new THREE.Mesh(footGeometry, footMaterial);
+                this.leftFoot.position.set(-0.15, 0.025, 0.0);
+                this.rightFoot = new THREE.Mesh(footGeometry, footMaterial);
+                this.rightFoot.position.set(0.15, 0.025, 0.0);
+                this.group.add(this.leftFoot, this.rightFoot);
+            }
+
+pickNewTarget() {
+    // Duvar sınırları içinde hedef seç
+    const wallLimit = 5.0;
+    this.target = new THREE.Vector3(
+        (Math.random() - 0.5) * wallLimit * 2,
+        0,
+        (Math.random() - 0.5) * wallLimit * 2
+    );
+    this.stuckTimer = 0;
+    this.isWalking = true;
+    this.idleTimer = 0;
+}
+
+            checkCollision(otherNPC) {
+                const distance = this.group.position.distanceTo(otherNPC.group.position);
+                return distance < 0.7;
+            }
+
+update(delta) {
+    if (!this.target) return;
+
+    this.updateNameLabelPosition();
+
+    if (this.isWalking) {
+        const direction = new THREE.Vector3()
+            .subVectors(this.target, this.group.position)
+            .normalize();
+
+        let collision = false;
+        
+        // NPC'lerle çarpışma kontrolü
+        for (let other of npcs) {
+            if (other !== this) {
+                if (this.checkCollision(other)) {
+                    collision = true;
+                    break;
+                }
+            }
+        }
+        
+        // Duvar çarpışma kontrolü - BUNU EKLE
+        const nextPos = this.group.position.clone().add(direction.clone().multiplyScalar(this.speed * delta));
+        const wallLimit = 5.5; // Oda sınırı
+        if (Math.abs(nextPos.x) > wallLimit || Math.abs(nextPos.z) > wallLimit) {
+            collision = true;
+            this.pickNewTarget(); // Yeni hedef seç
+        }
+
+        if (!collision) {
+            this.group.position.add(direction.multiplyScalar(this.speed * delta));
+            this.stuckTimer = 0;
+        } else {
+            this.stuckTimer += delta;
+            if (this.stuckTimer > 1.5) {
+                this.pickNewTarget();
+            }
+        }
+
+        const targetAngle = Math.atan2(direction.x, direction.z);
+        const currentAngle = this.group.rotation.y;
+        let angleDiff = targetAngle - currentAngle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        this.group.rotation.y += angleDiff * this.rotationSpeed;
+
+        this.animationTime += delta * 5;
+        const swing = Math.sin(this.animationTime) * 0.4;
+        this.leftArm.rotation.x = swing;
+        this.rightArm.rotation.x = -swing;
+        this.leftLeg.rotation.x = -swing;
+        this.rightLeg.rotation.x = swing;
+        
+        if (this.group.position.distanceTo(this.target) < 0.5) {
+            this.isWalking = false;
+            this.idleTimer = 3 + Math.random() * 3;
+        }
+    } else {
+        this.idleTimer -= delta;
+        if (this.idleTimer <= 0) {
+            this.pickNewTarget();
+        }
+        this.animationTime += delta * 0.5;
+        this.body.position.y = 0.45 + Math.sin(this.animationTime * 2) * 0.02;
+        this.leftArm.rotation.x = Math.sin(this.animationTime) * 0.1;
+        this.rightArm.rotation.x = Math.sin(this.animationTime) * 0.1;
+    }
+
+    // NPC pozisyon sınırlaması - BUNU GÜNCELLE
+    const maxDist = 5.5;
+    this.group.position.x = Math.max(-maxDist, Math.min(maxDist, this.group.position.x));
+    this.group.position.z = Math.max(-maxDist, Math.min(maxDist, this.group.position.z));
+}
+
+            destroy() {
+                if (this.nameLabel) this.nameLabel.remove();
+                scene.remove(this.group);
+                this.group.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+        }
 
         async function init() {
             const selectedDate = sessionStorage.getItem('selectedDate');
@@ -435,12 +832,15 @@
             await loadNewsData();
             setupScene();
             createRoom(getThemeByYear(new Date(selectedDate).getFullYear()));
+            createCeilingStructure();
             createPaintings();
+            createDoors();
             createLights();
+            createNPCs();
             setupEventListeners();
-            animate();
-
+            
             document.getElementById('loading').classList.add('hidden');
+            animate();
         }
 
         function getThemeByYear(year) {
@@ -451,75 +851,49 @@
             return 'ancient';
         }
 
-        async function loadNewsData() {
-            try {
-                const response = await fetch('data/mockNews.json');
-                const data = await response.json();
-                
-                let allNews = Array.isArray(data) ? data : data.news || [];
-                allNews = allNews.map(news => ({
-                    id: news.id || Math.random().toString(36).substr(2, 9),
-                    title: news.haberBasligi,
-                    category: news.haberKategorisi,
-                    image: news.haberGorseli || '',
-                    content: news.haberIcerigi,
-                    date: news.haberTarihi
-                }));
+     async function loadNewsData() {
+    try {
+        const response = await fetch('data/mockNews.json');
+        const data = await response.json();
+        
+        let allNews = Array.isArray(data) ? data : data.news || [];
+        allNews = allNews.map(news => ({
+            id: news.id || Math.random().toString(36).substr(2, 9),
+            title: news.haberBasligi,
+            category: news.haberKategorisi,
+            image: news.haberGorseli || '',
+            content: news.haberIcerigi,
+            date: news.haberTarihi
+        }));
 
-                // TARİH FİLTRELEME
-                const selectedDate = sessionStorage.getItem('selectedDate');
-                if (selectedDate) {
-                    newsData = allNews.filter(news => news.date === selectedDate);
-                    
-                    // Eğer o tarihte haber yoksa
-                    if (newsData.length === 0) {
-                        console.warn('⚠️ Seçilen tarihte haber bulunamadı. En yakın tarihlerden gösteriliyor.');
-                        // En yakın tarihteki haberleri bul
-                        const sortedByDate = allNews.sort((a, b) => {
-                            const diffA = Math.abs(new Date(a.date) - new Date(selectedDate));
-                            const diffB = Math.abs(new Date(b.date) - new Date(selectedDate));
-                            return diffA - diffB;
-                        });
-                        newsData = sortedByDate.slice(0, 12); // En yakın 12 haber
-                    }
-                } else {
-                    newsData = allNews.slice(0, 12); // İlk 12 haber
+        allNewsData = allNews;
+
+        const selectedDate = sessionStorage.getItem('selectedDate');
+        if (selectedDate) {
+            newsData = allNewsData.filter(news => news.date === selectedDate);
+            if (newsData.length === 0) {
+                console.warn('⚠️ Seçilen tarihte haber bulunamadı.');
+                const hud = document.getElementById('selectedDate');
+                if (hud) {
+                    hud.textContent = `Tarih: ${new Date(selectedDate).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })} - Haber bulunamadı`;
                 }
-
-                console.log('✅ Yüklenen haber sayısı:', newsData.length);
-                createCategoryBadges();
-            } catch (error) {
-                console.error('❌ Haber yükleme hatası:', error);
                 newsData = [];
             }
+        } else {
+            newsData = [];
+            const hud = document.getElementById('selectedDate');
+            if (hud) hud.textContent = 'Tarih: Lütfen bir tarih seçin';
         }
 
-        function createCategoryBadges() {
-            const categories = [...new Set(newsData.map(n => n.category))].filter(c => c);
-            const container = document.getElementById('categoryBadges');
-
-            categories.forEach(cat => {
-                const badge = document.createElement('div');
-                badge.className = 'category-badge active';
-                badge.innerHTML = `
-                    <div style="width: 14px; height: 14px; background: ${categoryColors[cat] || '#c9a961'}; border-radius: 50%; box-shadow: 0 0 10px ${categoryColors[cat] || '#c9a961'};"></div>
-                    ${cat}
-                `;
-                badge.dataset.category = cat;
-                badge.addEventListener('click', () => toggleCategory(badge, cat));
-                container.appendChild(badge);
-            });
-        }
-
-        function toggleCategory(badge, category) {
-            badge.classList.toggle('active');
-            paintings.forEach(p => {
-                if (p.userData.category === category) {
-                    p.visible = badge.classList.contains('active');
-                }
-            });
-        }
-
+        console.log('✅ Yüklenen haber sayısı:', newsData.length);
+    } catch (error) {
+        console.error('❌ Haber yükleme hatası:', error);
+        newsData = [];
+        const hud = document.getElementById('selectedDate');
+        if (hud) hud.textContent = 'Hata: Haberler yüklenemedi';
+    }
+}
+        
         function setupScene() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -528,6 +902,8 @@
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
             raycaster = new THREE.Raycaster();
@@ -539,45 +915,14 @@
             const wallHeight = 4;
             let wallColor, floorColor, ceilingColor, bgColor, fogColor;
 
-            switch (theme) {
-                case '80s':
-                    wallColor = 0x8b4789;
-                    floorColor = 0x2d1b69;
-                    ceilingColor = 0x4a148c;
-                    bgColor = 0x1a0033;
-                    fogColor = 0x1a0033;
-                    break;
-                case '90s':
-                    wallColor = 0xb0b0b0;
-                    floorColor = 0x707070;
-                    ceilingColor = 0x909090;
-                    bgColor = 0x505050;
-                    fogColor = 0x505050;
-                    break;
-                case '2000s':
-                    wallColor = 0x1e90ff;
-                    floorColor = 0x0d1117;
-                    ceilingColor = 0x2c3e50;
-                    bgColor = 0x000000;
-                    fogColor = 0x000000;
-                    break;
-                case '2010s':
-                    wallColor = 0xecf0f1;
-                    floorColor = 0xbdc3c7;
-                    ceilingColor = 0xd5dbdb;
-                    bgColor = 0x95a5a6;
-                    fogColor = 0x95a5a6;
-                    break;
-                case 'ancient':
-                default:
-                    wallColor = 0x6b5d4f;
-                    floorColor = 0x3a2f23;
-                    ceilingColor = 0x4d4035;
-                    bgColor = 0x1a1410;
-                    fogColor = 0x1a1410;
-                    break;
-            }
-
+            wallColor = 0x8b5a34;
+            floorColor = 0x4b2e1f;
+            ceilingColor = 0xd9baa6;
+            bgColor = 0x20140f;
+            fogColor = 0x20140f;
+            
+            scene.children.filter(c => c.isMesh && (c.geometry.type === 'PlaneGeometry' || c.geometry.type === 'BoxGeometry')).forEach(c => scene.remove(c));
+            
             scene.background = new THREE.Color(bgColor);
             scene.fog = new THREE.Fog(fogColor, 1, 20);
 
@@ -597,29 +942,69 @@
             ceiling.position.y = wallHeight;
             scene.add(ceiling);
 
-            const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 });
-            
+            window.wallMaterials = [
+                new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.88, metalness: 0.03 }),
+                new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.88, metalness: 0.03 }),
+                new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.88, metalness: 0.03 }),
+                new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.88, metalness: 0.03 })
+            ];
+
             const walls = [
-                { pos: [0, wallHeight / 2, -roomSize / 2], rot: 0 },
-                { pos: [0, wallHeight / 2, roomSize / 2], rot: Math.PI },
-                { pos: [-roomSize / 2, wallHeight / 2, 0], rot: Math.PI / 2 },
-                { pos: [roomSize / 2, wallHeight / 2, 0], rot: -Math.PI / 2 }
+                { pos: [0, wallHeight / 2, -roomSize / 2], rot: 0, mat: wallMaterials[0] },
+                { pos: [0, wallHeight / 2, roomSize / 2], rot: Math.PI, mat: wallMaterials[1] },
+                { pos: [-roomSize / 2, wallHeight / 2, 0], rot: Math.PI / 2, mat: wallMaterials[2] },
+                { pos: [roomSize / 2, wallHeight / 2, 0], rot: -Math.PI / 2, mat: wallMaterials[3] }
             ];
 
             walls.forEach(w => {
-                const wall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+                const wall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), w.mat);
                 wall.position.set(w.pos[0], w.pos[1], w.pos[2]);
                 wall.rotation.y = w.rot;
                 scene.add(wall);
             });
         }
 
+function createNPCs() {
+    npcs.forEach(npc => npc.destroy());
+    npcs = [];
+
+    // Ana salonda NPC olmasın
+    if (!currentRoomCategory) return;
+
+    const colors = [0xe74c3c, 0x3498db, 0x2ecc71, 0xf39c12, 0x9b59b6, 0x1abc9c];
+    const npcCount = 3 + Math.floor(Math.random() * 5); // 3-7 arası random - BUNU DEĞİŞTİR
+    
+    const mainRoom = rooms[0];
+    
+    for (let i = 0; i < npcCount; i++) {
+        const randomPosition = new THREE.Vector3(
+            (Math.random() - 0.5) * 8,
+            0,
+            (Math.random() - 0.5) * 8
+        );
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const npc = new NPC(randomPosition, color, currentRoomCategory);
+        npc.room = mainRoom;
+        npcs.push(npc);
+    }
+}
+
         function createPaintings() {
+            if (!currentRoomCategory) {
+                clearPaintings();
+                createDoors();
+                ceilingStructure.visible = true; 
+                return;
+            }
+
+            ceilingStructure.visible = false;
+            clearPaintings();
+
             const wallPositions = {
                 'front': { z: -5.8, rotation: 0 },
+                'right': { x: 5.8, rotation: -Math.PI / 2 },
                 'back': { z: 5.8, rotation: Math.PI },
-                'left': { x: -5.8, rotation: Math.PI / 2 },
-                'right': { x: 5.8, rotation: -Math.PI / 2 }
+                'left': { x: -5.8, rotation: Math.PI / 2 }
             };
 
             const categoryWalls = {
@@ -640,28 +1025,257 @@
                 newsByWall[wall].push(news);
             });
 
-            // HER DUVARDA MAKSIMUM 4 HABER (köşelerde sıkışma önlenir)
-            Object.keys(newsByWall).forEach(wall => {
-                if (newsByWall[wall].length > 4) {
-                    newsByWall[wall] = newsByWall[wall].slice(0, 4);
+            const wallOrder = ['front', 'right', 'back', 'left'];
+            const maxColumns = 6;
+            const maxRows = 3;
+            const spacingX = 2.4;
+            const spacingY = 1.9;
+            const capacity = maxColumns * maxRows;
+
+            if (currentRoomCategory) {
+                const wallsToUse = ['front', 'right', 'left'];
+                const perWallCapacity = 8;
+                const colsForPerWall = 4;
+
+                for (let w = 0; w < wallsToUse.length; w++) {
+                    const wall = wallsToUse[w];
+                    const wallConfig = wallPositions[wall];
+                    const start = w * perWallCapacity;
+                    const chunk = newsData.slice(start, start + perWallCapacity);
+                    if (!chunk || chunk.length === 0) continue;
+
+                    const cols = Math.min(colsForPerWall, chunk.length);
+                    const rows = Math.ceil(chunk.length / cols);
+                    const totalWidth = (cols - 1) * spacingX;
+                    const totalHeight = (rows - 1) * spacingY;
+
+                    for (let i = 0; i < chunk.length; i++) {
+                        const col = i % cols;
+                        const row = Math.floor(i / cols);
+                        const offsetX = -(totalWidth / 2) + col * spacingX;
+                        const offsetY = 2.2 + (totalHeight / 2) - row * spacingY;
+                        createPainting(chunk[i], wall, wallConfig, offsetX, offsetY);
+                    }
                 }
-            });
-
-            Object.keys(newsByWall).forEach(wall => {
-                const items = newsByWall[wall];
-                const wallConfig = wallPositions[wall];
-                const spacing = 3.0; // Daha geniş aralık
-                const startOffset = -(items.length - 1) * spacing / 2;
-
-                items.forEach((news, index) => {
-                    createPainting(news, wall, wallConfig, startOffset + index * spacing);
+            }
+        }
+        
+        function clearPaintings() {
+            paintings.forEach(p => {
+                scene.remove(p);
+                p.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                        else child.material.dispose();
+                    }
                 });
             });
-
-            console.log('🎨 Toplam', paintings.length, 'kristal oluşturuldu');
+            paintings = [];
         }
 
-        function createPainting(news, wall, wallConfig, offset) {
+        function createDoor(targetCategory, position, rotation = 0) {
+            const pos = position || { x: 2.5, y: 1.35, z: -5.5 };
+            const catColorHex = categoryColors[targetCategory] || '#c9a961';
+            const targetColor = new THREE.Color(catColorHex);
+            
+            const frameGeo = new THREE.BoxGeometry(1.3, 2.5, 0.05);
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0xb8873a, metalness: 0.9, roughness: 0.18 });
+            const frame = new THREE.Mesh(frameGeo, frameMat);
+            frame.position.set(pos.x, pos.y, pos.z - 0.13);
+            frame.rotation.y = rotation;
+
+            const portalGeo = new THREE.PlaneGeometry(1.2, 2.4);
+            const portalMat = new THREE.MeshStandardMaterial({ 
+                color: targetColor, 
+                emissive: targetColor, 
+                emissiveIntensity: 1.2 
+            });
+            const portal = new THREE.Mesh(portalGeo, portalMat);
+            portal.position.set(pos.x, pos.y, pos.z - 0.05);
+            portal.rotation.y = rotation;
+            portal.visible = false;
+
+            const doorGeo = new THREE.BoxGeometry(1.2, 2.4, 0.12);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x4b2e1a, metalness: 0.1, roughness: 0.6 });
+            const door = new THREE.Mesh(doorGeo, doorMat);
+
+            const pivot = new THREE.Group();
+            const hingeOffset = 1.2 / 2;
+            
+            pivot.position.set(pos.x - Math.sin(rotation) * hingeOffset, pos.y, pos.z - Math.cos(rotation) * hingeOffset);
+            door.position.set(Math.sin(rotation) * hingeOffset, 0, Math.cos(rotation) * hingeOffset);
+            door.rotation.y = rotation;
+
+            pivot.add(door);
+
+            const labelCanvas = document.createElement('canvas');
+            labelCanvas.width = 512;
+            labelCanvas.height = 128;
+            const labelCtx = labelCanvas.getContext('2d');
+            labelCtx.fillStyle = '#111111';
+            labelCtx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
+            labelCtx.fillStyle = catColorHex;
+            labelCtx.font = 'bold 42px Cinzel, Arial';
+            labelCtx.textAlign = 'center';
+            labelCtx.textBaseline = 'middle';
+            const labelText = (targetCategory === 'main') ? 'ANA SALON' : targetCategory.toUpperCase();
+            labelCtx.fillText(labelText, labelCanvas.width / 2, labelCanvas.height / 2);
+
+            const labelTex = new THREE.CanvasTexture(labelCanvas);
+            const labelMat = new THREE.MeshStandardMaterial({ 
+                map: labelTex, 
+                toneMapped: false,
+                emissive: targetColor,
+                emissiveIntensity: 0.8
+            });
+            const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.35), labelMat);
+            labelMesh.position.set(pos.x, pos.y + 1.4, pos.z + 0.01);
+            labelMesh.rotation.y = rotation;
+
+            const group = new THREE.Group();
+            group.add(portal);
+            group.add(frame);
+            group.add(pivot);
+            group.add(labelMesh);
+
+            group.userData = {
+                isDoor: true,
+                targetCategory: targetCategory,
+                pivot: pivot,
+                doorMesh: door,
+                portalMesh: portal,
+                isOpen: false,
+                isOpening: false,
+                entered: false,
+                rotation: rotation,
+                pos: { x: pos.x, y: pos.y, z: pos.z },
+                pendingEnter: false,
+                enterTrigger: null
+            };
+
+            frame.userData = group.userData;
+            pivot.userData = group.userData;
+            door.userData = group.userData;
+            labelMesh.userData = group.userData;
+            portal.userData = group.userData;
+
+            scene.add(group);
+            doors.push(group);
+        }
+
+function openDoor(group) {
+    if (!group || !group.userData) return;
+    if (group.userData.isOpen || group.userData.isOpening) return;
+    
+    group.userData.portalMesh.visible = true;
+    
+    // Portal animasyonu EKLE
+    let portalIntensity = 0;
+    const portalInterval = setInterval(() => {
+        portalIntensity += 0.05;
+        if (portalIntensity >= 1.5) {
+            portalIntensity = 1.5;
+            clearInterval(portalInterval);
+        }
+        group.userData.portalMesh.material.emissiveIntensity = portalIntensity;
+    }, 30);
+
+    const pivot = group.userData.pivot;
+    const start = pivot.rotation.y;
+    const wallRot = group.userData.rotation || 0;
+    const openAngle = Math.PI / 2;
+    
+    let target = start + (wallRot === 0 || wallRot === Math.PI ? -openAngle : openAngle);
+
+    group.userData.isOpening = true;
+    doorAnimations.push({ pivot: pivot, start: start, target: target, t: 0, duration: 600, group: group });
+}
+
+        function createDoors() {
+            doors.forEach(d => scene.remove(d));
+            doors = [];
+
+            const fixedCategories = [
+                'darbe', 'deprem', 'koronavirüs', 'spor', 
+                'kültür', 'eğitim', 'iklim', 'teknoloji'
+            ];
+
+            if (!currentRoomCategory) {
+                const categoriesToDisplay = fixedCategories.slice(0, 8);
+                const slotPositions = [
+                    { x: -1.5, z: -5.5, rot: 0 },
+                    { x: 1.5, z: -5.5, rot: 0 },
+                    { x: 5.5, z: -1.5, rot: -Math.PI / 2 },
+                    { x: 5.5, z: 1.5, rot: -Math.PI / 2 },
+                    { x: 1.5, z: 5.5, rot: Math.PI },
+                    { x: -1.5, z: 5.5, rot: Math.PI },
+                    { x: -5.5, z: 1.5, rot: Math.PI / 2 },
+                    { x: -5.5, z: -1.5, rot: Math.PI / 2 }
+                ];
+
+                categoriesToDisplay.forEach((cat, i) => {
+                    const slot = slotPositions[i];
+                    if (!slot) return;
+                    createDoor(cat, { x: slot.x, y: 1.35, z: slot.z }, slot.rot);
+                });
+            } else {
+                createDoor('main', { x: 0, y: 1.35, z: 5.5 }, Math.PI);
+            }
+        }
+        
+function enterCategoryRoom(category) {
+    currentRoomCategory = category;
+    clearPaintings();
+    
+    const selectedDate = sessionStorage.getItem('selectedDate');
+    const filtered = allNewsData.filter(n => n.category === category && n.date === selectedDate);
+    newsData = filtered;
+    
+    createPaintings();
+    
+    const hud = document.getElementById('selectedDate');
+    if (hud) {
+        if (selectedDate) {
+            hud.textContent = `Oda: ${category.toUpperCase()} - ${new Date(selectedDate).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+        } else {
+            hud.textContent = `Oda: ${category.toUpperCase()}`;
+        }
+    }
+    
+    createDoors();
+    createNPCs();
+}
+
+function goToMainRoom() {
+    currentRoomCategory = null;
+    
+    // NPC'leri temizle
+    npcs.forEach(npc => npc.destroy());
+    npcs = [];
+    
+    clearPaintings();
+    
+    newsData = allNewsData.slice(0, 12);
+    createPaintings();
+    if (ceilingStructure) ceilingStructure.visible = true;
+    
+    createRoom(getThemeByYear(new Date(sessionStorage.getItem('selectedDate')).getFullYear()));
+    
+    const hud = document.getElementById('selectedDate');
+    const selectedDate = sessionStorage.getItem('selectedDate');
+    if (hud) {
+        if (selectedDate) {
+            hud.textContent = `Tarih: ${new Date(selectedDate).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+        } else {
+            hud.textContent = 'Tarih: ...';
+        }
+    }
+    
+    createDoors();
+}
+        
+        function createPainting(news, wall, wallConfig, offset, yOffset) {
             const paintingWidth = 1.8;
             const paintingHeight = 1.2;
 
@@ -721,12 +1335,12 @@
             );
             image.position.z = 0.01;
 
-const labelCanvas = document.createElement('canvas');
+            const labelCanvas = document.createElement('canvas');
             labelCanvas.width = 512;
             labelCanvas.height = 100;
             const labelCtx = labelCanvas.getContext('2d');
             
-            labelCtx.fillStyle = categoryColor;
+            labelCtx.fillStyle = categoryColors[news.category] || '#c9a961';
             labelCtx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
             
             labelCtx.fillStyle = '#ffffff';
@@ -734,14 +1348,12 @@ const labelCanvas = document.createElement('canvas');
             labelCtx.textAlign = 'center';
             labelCtx.textBaseline = 'middle';
             
-            // Başlığı satırlara böl (max 50 karakter)
             const maxChars = 50;
             let labelTitle = news.title;
             if (labelTitle.length > maxChars) {
                 labelTitle = labelTitle.substring(0, maxChars - 3) + '...';
             }
             
-            // Kelime kelime bölerek 2 satıra sığdır
             const labelWords = labelTitle.split(' ');
             const lines = [];
             let currentLine = '';
@@ -758,7 +1370,6 @@ const labelCanvas = document.createElement('canvas');
             });
             if (currentLine) lines.push(currentLine.trim());
             
-            // Maksimum 2 satır göster
             const finalLines = lines.slice(0, 2);
             const lineHeight = 30;
             const startY = labelCanvas.height / 2 - ((finalLines.length - 1) * lineHeight / 2);
@@ -769,7 +1380,10 @@ const labelCanvas = document.createElement('canvas');
 
             const label = new THREE.Mesh(
                 new THREE.PlaneGeometry(paintingWidth, 0.35),
-                new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(labelCanvas) })
+                new THREE.MeshStandardMaterial({ 
+                    map: new THREE.CanvasTexture(labelCanvas), 
+                    toneMapped: false 
+                })
             );
             label.position.y = -(paintingHeight / 2 + 0.23);
             label.position.z = 0.01;
@@ -779,10 +1393,11 @@ const labelCanvas = document.createElement('canvas');
             paintingGroup.add(image);
             paintingGroup.add(label);
 
+            const baseY = typeof yOffset === 'number' ? yOffset : 2;
             if (wall === 'front' || wall === 'back') {
-                paintingGroup.position.set(offset, 2, wallConfig.z);
+                paintingGroup.position.set(offset, baseY, wallConfig.z);
             } else {
-                paintingGroup.position.set(wallConfig.x, 2, offset);
+                paintingGroup.position.set(wallConfig.x, baseY, offset);
             }
 
             paintingGroup.rotation.y = wallConfig.rotation;
@@ -793,8 +1408,245 @@ const labelCanvas = document.createElement('canvas');
             paintings.push(paintingGroup);
         }
 
+function createScrollingSignTexture(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.NearestFilter;
+            
+            const animationData = {
+                canvas,
+                ctx,
+                texture,
+                scrollOffset: 0,
+                animationSpeed: 1, 
+                text: text + ' ', // Metnin bitiminde bir boşluk bırak
+                color: color
+            };
+
+            // Metni sağdan sola döngüsel olarak kaydıran çizim işlevi (Ticker efekti)
+            const drawSign = (offset) => {
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, 512, 128);
+                
+                ctx.fillStyle = animationData.color;
+                ctx.font = 'bold 40px Space Grotesk'; 
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+
+                const fullText = animationData.text; 
+                const textWidth = ctx.measureText(fullText).width;
+                
+                // Metnin kaydığı X konumu (Sağdan sola akış)
+                // Offset, metnin başlama noktasını belirler.
+                let currentX = 512 - (offset % (512 + textWidth));
+                
+                // Metni sürekli olarak çiz, böylece akış kesintisiz olur.
+                ctx.fillText(fullText, currentX, 64);
+                
+                // Metin ekranın solundan tamamen çıkmadan hemen önce tekrar çizmeye başla
+                if (currentX + textWidth < 512) {
+                    ctx.fillText(fullText, currentX + textWidth, 64);
+                }
+            };
+            
+            animationData.drawSign = drawSign;
+            ceilingAnimations.push(animationData);
+            return texture;
+        }
+
+        function createButtonTexture() {
+            const buttonCanvas = document.createElement('canvas');
+            buttonCanvas.width = 128;
+            buttonCanvas.height = 128;
+            const buttonCtx = buttonCanvas.getContext('2d');
+            const buttonTexture = new THREE.CanvasTexture(buttonCanvas);
+            
+            const drawButton = (isBlinking) => {
+                buttonCtx.fillStyle = '#111111';
+                buttonCtx.fillRect(0, 0, 128, 128);
+                
+                buttonCtx.fillStyle = isBlinking ? '#ff3333' : '#aa0000';
+                buttonCtx.beginPath();
+                buttonCtx.arc(64, 64, 50, 0, Math.PI * 2);
+                buttonCtx.fill();
+
+                buttonCtx.fillStyle = 'white';
+                buttonCtx.font = 'bold 80px Arial';
+                buttonCtx.textAlign = 'center';
+                buttonCtx.textBaseline = 'middle';
+                buttonCtx.fillText('▶', 68, 64);
+                buttonTexture.needsUpdate = true;
+            };
+
+            const animationData = {
+                isBlinking: true,
+                texture: buttonTexture,
+                drawButton: drawButton,
+                blinkTimer: 0,
+                blinkDuration: 0.5 
+            };
+            
+            drawButton(true);
+            ceilingAnimations.push(animationData);
+            return buttonTexture;
+        }
+
+
+        function createCeilingStructure() {
+            scene.remove(ceilingStructure);
+            ceilingStructure.clear();
+            ceilingAnimations = []; 
+
+            const roomSize = 12;
+            const wallHeight = 4;
+
+            const lightIntensity = 0.9;
+            const lightPositions = [
+                { x: -2.3, z: -2.2 }, { x: -0.2, z: -2.3 }, { x: 2.1, z: -2.1 },
+                { x: -2.2, z: -0.1 }, { x: 2.3, z: 0.2 },
+                { x: -2.1, z: 2.3 }, { x: 0.1, z: 2.2 }, { x: 2.2, z: 2.1 }
+            ];
+
+            lightPositions.forEach((pos) => {
+                const pointLight = new THREE.PointLight(0xffffff, lightIntensity, 10);
+                pointLight.position.set(pos.x, wallHeight - 0.5, pos.z);
+                ceilingStructure.add(pointLight);
+            });
+
+            const panelGeo = new THREE.PlaneGeometry(roomSize, roomSize);
+            const panelMat = new THREE.MeshStandardMaterial({
+                color: 0x5a5a5a, 
+                metalness: 0.8, 
+                roughness: 0.2,
+                side: THREE.DoubleSide
+            });
+            const ceilingPanel = new THREE.Mesh(panelGeo, panelMat);
+            ceilingPanel.rotation.x = Math.PI / 2;
+            ceilingPanel.position.y = wallHeight - 0.1;
+
+            ceilingStructure.add(ceilingPanel);
+
+            // --- 1. Medya Teknolojileri Tabelası (Merkez) ---
+            const signGeo = new THREE.BoxGeometry(3.5, 0.5, 0.1);
+            const signMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); 
+            const wallCenterZ = 0;
+            const signY = wallHeight - 1.2;
+
+            const textCanvas = document.createElement('canvas');
+            textCanvas.width = 512;
+            textCanvas.height = 128;
+            const textCtx = textCanvas.getContext('2d');
+            textCtx.fillStyle = '#000000';
+            textCtx.fillRect(0, 0, 512, 128);
+            textCtx.fillStyle = '#ffffff';
+            textCtx.font = 'bold 35px Space Grotesk'; 
+            textCtx.textAlign = 'center';
+            textCtx.textBaseline = 'middle';
+            textCtx.fillText('MEDYA TEKNOLOJİLERİ', 256, 40);
+            textCtx.font = 'bold 45px Space Grotesk'; 
+            textCtx.fillText('HACKATHONU', 256, 95);
+
+            const signTexture = new THREE.CanvasTexture(textCanvas);
+            const signEmissiveMatFront = new THREE.MeshBasicMaterial({ map: signTexture, toneMapped: false, side: THREE.FrontSide });
+            const signEmissiveMatBack = new THREE.MeshBasicMaterial({ map: signTexture, toneMapped: false, side: THREE.BackSide });
+
+            const signMesh = new THREE.Mesh(signGeo, [
+                signMat,             
+                signMat,             
+                signMat,             
+                signMat,             
+                signEmissiveMatFront,
+                signEmissiveMatBack  
+            ]);
+            signMesh.position.set(wallCenterZ, signY, 0);
+
+            const cableMat = new THREE.LineBasicMaterial({ color: 0x888888, linewidth: 2 });
+            const createCable = (x, y, z) => {
+                const points = [];
+                points.push(new THREE.Vector3(x, wallHeight - 0.05, z));
+                points.push(new THREE.Vector3(x, y + 0.3, z)); 
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                return new THREE.Line(geometry, cableMat);
+            };
+            ceilingStructure.add(createCable(-1.6, signMesh.position.y, 0)); 
+            ceilingStructure.add(createCable(1.6, signMesh.position.y, 0));
+
+            ceilingStructure.add(signMesh);
+            
+            // --- 2. Hareketli "newshort" Tabelası (SOLDA) ---
+            const shortSignGeo = new THREE.BoxGeometry(1.5, 0.3, 0.1);
+            const shortSignFrameMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
+            
+            const shortSignTexture = createScrollingSignTexture('NewShort ->', '#e74c3c');
+            const shortSignEmissiveMat = new THREE.MeshBasicMaterial({ map: shortSignTexture, toneMapped: false });
+            
+            const shortSignMesh = new THREE.Mesh(shortSignGeo, [
+                shortSignFrameMat, 
+                shortSignFrameMat, 
+                shortSignFrameMat, 
+                shortSignFrameMat, 
+                shortSignEmissiveMat, // Front
+                shortSignFrameMat     // Back
+            ]);
+            
+            const shortSignGroup = new THREE.Group();
+            shortSignGroup.add(shortSignMesh);
+            shortSignGroup.position.set(-3.0, signY, 0); // Ana tabelanın soluna
+            
+            ceilingStructure.add(shortSignGroup);
+            
+            // --- 3. Short Butonu (SAĞDA) ---
+            const buttonSize = 0.5;
+            const shortButtonGeo = new THREE.PlaneGeometry(buttonSize, buttonSize);
+            
+            const buttonTexture = createButtonTexture();
+            
+            const shortButtonMesh = new THREE.Mesh(shortButtonGeo, new THREE.MeshBasicMaterial({ map: buttonTexture, toneMapped: false }));
+            shortButtonMesh.position.set(0, 0, 0.1); // Z-ekseninde hafif öne
+            
+            const shortButtonGroup = new THREE.Group();
+            shortButtonGroup.add(shortButtonMesh);
+            
+            shortButtonGroup.position.set(3.0, signY, 0); // Ana tabelanın sağına
+            
+            shortButtonGroup.userData = { clickable: true, action: 'openShorts' }; 
+            shortButtonMesh.userData = shortButtonGroup.userData;
+
+            ceilingStructure.add(shortButtonGroup);
+
+            // Buton için de kablo ekleyelim
+            ceilingStructure.add(createCable(shortButtonGroup.position.x, signY + 0.3, shortButtonGroup.position.z));
+
+            scene.add(ceilingStructure);
+        }
+
+        function updateCeilingAnimations(delta) {
+            ceilingAnimations.forEach(anim => {
+                if (anim.drawSign) {
+                    anim.scrollOffset += anim.animationSpeed * delta * 60; // Frame rate bağımsız kayma
+                    anim.drawSign(anim.scrollOffset);
+                    anim.texture.needsUpdate = true;
+                }
+                
+                if (anim.drawButton) {
+                    anim.blinkTimer += delta;
+                    if (anim.blinkTimer >= anim.blinkDuration) {
+                        anim.isBlinking = !anim.isBlinking;
+                        anim.drawButton(anim.isBlinking);
+                        anim.texture.needsUpdate = true;
+                        anim.blinkTimer = 0;
+                    }
+                }
+            });
+        }
+
+
         function createLights() {
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            const ambientLight = new THREE.AmbientLight(0xfff4e6, 0.72);
             scene.add(ambientLight);
 
             const walls = [
@@ -805,16 +1657,17 @@ const labelCanvas = document.createElement('canvas');
             ];
 
             walls.forEach(wall => {
-                const light = new THREE.DirectionalLight(0xffffff, 0.6);
+                const light = new THREE.DirectionalLight(0xfff6e6, 0.7);
                 light.position.set(...wall.pos);
                 light.target.position.set(...wall.target);
+                light.castShadow = true;
+                light.shadow.mapSize.width = 512;
+                light.shadow.mapSize.height = 512;
+                light.shadow.camera.near = 0.5;
+                light.shadow.camera.far = 50;
                 scene.add(light);
                 scene.add(light.target);
             });
-
-            const pointLight = new THREE.PointLight(0xffa500, 0.4);
-            pointLight.position.set(0, 3.5, 0);
-            scene.add(pointLight);
         }
 
         function setupEventListeners() {
@@ -829,6 +1682,8 @@ const labelCanvas = document.createElement('canvas');
             document.getElementById('modal').addEventListener('click', (e) => {
                 if (e.target.id === 'modal') closeModal();
             });
+            const speakBtn = document.getElementById('speakButton');
+            if (speakBtn) speakBtn.addEventListener('click', toggleSpeak);
             window.addEventListener('resize', onWindowResize);
         }
 
@@ -854,18 +1709,32 @@ const labelCanvas = document.createElement('canvas');
             document.getElementById('canvas-container').classList.remove('grabbing');
         }
 
-        function onClick(event) {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children, true);
-            for (let intersect of intersects) {
-                if (intersect.object.userData.clickable) {
-                    openModal(intersect.object.userData.newsId);
-                    break;
-                }
+function onClick(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    for (let intersect of intersects) {
+        if (intersect.object.userData && intersect.object.userData.isDoor) {
+            let obj = intersect.object;
+            while (obj && !obj.userData.isDoor) obj = obj.parent;
+            const group = obj;
+            if (group && group.userData) {
+                openDoor(group); // Sadece kapıyı aç
             }
+            break;
         }
+        if (intersect.object.userData && intersect.object.userData.action === 'openShorts') {
+            alert('Shorts Modu Aktifleştirildi! (Bu kısım için bir aksiyon tanımlanabilir)');
+            break;
+        }
+        if (intersect.object.userData && intersect.object.userData.clickable) {
+            openModal(intersect.object.userData.newsId);
+            break;
+        }
+    }
+}
 
         function onKeyDown(event) {
             switch (event.key.toLowerCase()) {
@@ -887,58 +1756,278 @@ const labelCanvas = document.createElement('canvas');
         }
 
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function openModal(newsId) {
+    const news = newsData.find(n => n.id === newsId);
+    if (!news) return;
+
+    const categoryColor = categoryColors[news.category] || '#c9a961';
+    document.getElementById('modalImage').src = news.image || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="900" height="450"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:' + categoryColor + ';stop-opacity:1"/><stop offset="100%" style="stop-color:%231a0f0a;stop-opacity:1"/></linearGradient></defs><rect width="900" height="450" fill="url(%23g)"/><text x="450" y="225" font-size="120" text-anchor="middle" fill="white">🔮</text></svg>';
+
+    const modalCategory = document.getElementById('modalCategory');
+    modalCategory.textContent = news.category;
+    modalCategory.style.background = categoryColor + '33';
+    modalCategory.style.borderColor = categoryColor;
+    modalCategory.style.color = categoryColor;
+    
+    document.getElementById('modalTitle').textContent = news.title;
+    document.getElementById('modalContentText').textContent = news.content;
+    document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+    stopSpeak();
+}
+
+let audioElement = null;
+let isSpeaking = false;
+
+function toggleSpeak() {
+    const btn = document.getElementById('speakButton');
+    if (!btn) return;
+    if (isSpeaking) {
+        stopSpeak();
+    } else {
+        const text = document.getElementById('modalContentText').textContent || document.getElementById('modalTitle').textContent;
+        startSpeak(text);
+    }
+}
+
+async function startSpeak(text) {
+    if (isSpeaking) {
+        stopSpeak();
+    }
+
+    try {
+        console.log('Starting TTS for text:', text.substring(0, 50) + '...');
+        
+        // Buradaki API adresi local host veya ngrok tünel adresi olmalıdır.
+        const response = await fetch('http://192.168.91.9:5000/api/tts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`TTS API error: ${response.status}`);
         }
 
-        function openModal(newsId) {
-            const news = newsData.find(n => n.id === newsId);
-            if (!news) return;
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
 
-            const categoryColor = categoryColors[news.category] || '#c9a961';
-            document.getElementById('modalImage').src = news.image || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="900" height="450"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:' + categoryColor + ';stop-opacity:1"/><stop offset="100%" style="stop-color:%231a0f0a;stop-opacity:1"/></linearGradient></defs><rect width="900" height="450" fill="url(%23g)"/><text x="450" y="225" font-size="120" text-anchor="middle" fill="white">🔮</text></svg>';
+        if (!audioElement) {
+            audioElement = new Audio();
+            audioElement.addEventListener('ended', () => {
+                isSpeaking = false;
+                const btn = document.getElementById('speakButton');
+                if (btn) {
+                    btn.classList.remove('speaking');
+                    document.getElementById('speakIcon').textContent = '🔊';
+                    document.getElementById('speakText').textContent = 'Seslendir';
+                }
+                console.log('TTS playback ended');
+            });
+        }
 
-            const modalCategory = document.getElementById('modalCategory');
-            modalCategory.textContent = news.category;
-            modalCategory.style.background = categoryColor + '33';
-            modalCategory.style.borderColor = categoryColor;
-            modalCategory.style.color = categoryColor;
+        audioElement.src = audioUrl;
+        audioElement.play();
+        isSpeaking = true;
+        
+        const btn = document.getElementById('speakButton');
+        if (btn) {
+            btn.classList.add('speaking');
+            document.getElementById('speakIcon').textContent = '⏸️';
+            document.getElementById('speakText').textContent = 'Durdur';
+        }
+        console.log('TTS playback started');
+    } catch (error) {
+        console.error('TTS error:', error);
+        alert('Seslendirme hatası: ' + error.message);
+        isSpeaking = false;
+        const btn = document.getElementById('speakButton');
+        if (btn) {
+            btn.classList.remove('speaking');
+            document.getElementById('speakIcon').textContent = '🔊';
+            document.getElementById('speakText').textContent = 'Seslendir';
+        }
+    }
+}
+
+function stopSpeak() {
+    if (audioElement) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+        URL.revokeObjectURL(audioElement.src);
+        audioElement.src = '';
+        console.log('TTS playback stopped');
+    }
+    isSpeaking = false;
+    const btn = document.getElementById('speakButton');
+    if (btn) {
+        btn.classList.remove('speaking');
+        document.getElementById('speakIcon').textContent = '🔊';
+        document.getElementById('speakText').textContent = 'Seslendir';
+    }
+}
+
+function updateMovement() {
+    velocity.set(0, 0, 0);
+    if (moveState.forward) velocity.z -= moveSpeed;
+    if (moveState.backward) velocity.z += moveSpeed;
+    if (moveState.left) velocity.x -= moveSpeed;
+    if (moveState.right) velocity.x += moveSpeed;
+
+    const euler = new THREE.Euler(0, cameraRotation.y, 0, 'YXZ');
+    velocity.applyEuler(euler);
+
+    // Ana salonda da oda sınırı - BUNU GÜNCELLE
+    const maxDistance = 5.5;
+    camera.position.x = Math.max(-maxDistance, Math.min(maxDistance, camera.position.x + velocity.x));
+    camera.position.z = Math.max(-maxDistance, Math.min(maxDistance, camera.position.z + velocity.z));
+}
+
+let lastTime = performance.now();
+function animate() {
+    requestAnimationFrame(animate);
+    const now = performance.now();
+    const delta = (now - lastTime) / 1000;
+    lastTime = now;
+    
+    updateMovement();
+    updateDoorAnimations();
+    updateCeilingAnimations(delta); 
+    
+    // NPC room-based visibility and update
+    let currentRoom = rooms[0];
+    for (let i = 1; i < rooms.length; i++) {
+        const room = rooms[i];
+        const distance = new THREE.Vector3(room.x, 0, room.z).distanceTo(camera.position);
+        if (distance < 6) {
+            currentRoom = room;
+            break;
+        }
+    }
+
+    npcs.forEach(npc => {
+        const isInCurrentRoom = npc.room === currentRoom;
+        npc.group.visible = isInCurrentRoom;
+        if (npc.bubble) npc.bubble.style.display = isInCurrentRoom ? 'block' : 'none';
+        if (isInCurrentRoom) npc.update(delta);
+    });
+    
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = cameraRotation.y;
+    camera.rotation.x = cameraRotation.x;
+    renderer.render(scene, camera);
+}
+
+function updateDoorAnimations() {
+    const now = Date.now();
+    for (let i = doorAnimations.length - 1; i >= 0; i--) {
+        const a = doorAnimations[i];
+        a.t += 16; 
+        const p = Math.min(1, a.t / a.duration);
+        const ease = 1 - Math.pow(1 - p, 3);
+        a.pivot.rotation.y = a.start + (a.target - a.start) * ease;
+        if (p >= 1) {
+            a.group.userData.isOpen = true;
+            a.group.userData.isOpening = false;
+            console.log('✅ Door opened:', a.group.userData.targetCategory);
             
-            document.getElementById('modalTitle').textContent = news.title;
-            document.getElementById('modalContentText').textContent = news.content;
-            document.getElementById('modal').classList.add('active');
+            a.group.userData.portalMesh.material.emissiveIntensity = 0.8;
+            
+            try {
+                const target = a.group.userData.targetCategory;
+                if (!a.group.userData.entered) {
+                    a.group.userData.entered = false; 
+                    a.group.userData.pendingEnter = true;
+                    
+                    const rot = a.group.userData.rotation || 0;
+                    const nx = Math.sin(rot);
+                    const nz = Math.cos(rot);
+                    const offset = 0.5; // BUNU AZALT - daha yakın trigger
+                    const cx = a.group.userData.pos.x + nx * offset;
+                    const cz = a.group.userData.pos.z + nz * offset;
+                    
+                    const hx = 0.6; // BUNU AZALT - daha dar trigger
+                    const hz = 0.7; // BUNU AZALT
+                    a.group.userData.enterTrigger = { cx: cx, cz: cz, hx: hx, hz: hz, minY: 0.3, maxY: 2.5 };
+                    a.group.userData.pendingEnter = true;
+                    console.log('🟢 Door trigger set for', target);
+                }
+            } catch (e) {
+                console.warn('Room switch preparation failed', e);
+            }
+            doorAnimations.splice(i, 1);
         }
+    }
 
-        function closeModal() {
-            document.getElementById('modal').classList.remove('active');
+    // Kapıdan geçiş kontrolü - BUNU GÜNCELLE
+    for (let d of doors) {
+        try {
+            if (d.userData && d.userData.pendingEnter && !d.userData.entered) {
+                const t = d.userData.enterTrigger;
+                if (!t) continue;
+                const dx = camera.position.x - t.cx;
+                const dz = camera.position.z - t.cz;
+                const dy = camera.position.y;
+                
+                // Trigger mesafesini hesapla
+                const distanceToTrigger = Math.sqrt(dx * dx + dz * dz);
+                
+                if (Math.abs(dx) <= t.hx && Math.abs(dz) <= t.hz && dy >= t.minY && dy <= t.maxY) {
+                    d.userData.entered = true;
+                    d.userData.pendingEnter = false;
+                    const target = d.userData.targetCategory;
+                    console.log('🚪 Walking through door — entering:', target);
+                    
+                    // Geçiş efekti EKLE
+                    const overlay = document.getElementById('transition-overlay');
+                    if (overlay) {
+                        overlay.classList.add('active');
+                        
+                        // Ses efekti (isteğe bağlı)
+                        const audio = new Audio();
+                        audio.volume = 0.3;
+                        // Kapı geçiş sesi buraya eklenebilir
+                        
+                        setTimeout(() => {
+                            if (target === 'main') {
+                                goToMainRoom();
+                            } else {
+                                enterCategoryRoom(target);
+                            }
+                            
+                            // Kamera pozisyonunu kapının ötesine taşı
+                            const rot = d.userData.rotation || 0;
+                            const nx = Math.sin(rot);
+                            const nz = Math.cos(rot);
+                            camera.position.x = d.userData.pos.x + nx * 1.5;
+                            camera.position.z = d.userData.pos.z + nz * 1.5;
+                            
+                            setTimeout(() => {
+                                overlay.classList.remove('active');
+                            }, 300);
+                        }, 300);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Error checking door trigger', e);
         }
+    }
+}
 
-        function updateMovement() {
-            velocity.set(0, 0, 0);
-            if (moveState.forward) velocity.z -= moveSpeed;
-            if (moveState.backward) velocity.z += moveSpeed;
-            if (moveState.left) velocity.x -= moveSpeed;
-            if (moveState.right) velocity.x += moveSpeed;
-
-            const euler = new THREE.Euler(0, cameraRotation.y, 0, 'YXZ');
-            velocity.applyEuler(euler);
-
-            const maxDistance = 5;
-            camera.position.x = Math.max(-maxDistance, Math.min(maxDistance, camera.position.x + velocity.x));
-            camera.position.z = Math.max(-maxDistance, Math.min(maxDistance, camera.position.z + velocity.z));
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            updateMovement();
-            camera.rotation.order = 'YXZ';
-            camera.rotation.y = cameraRotation.y;
-            camera.rotation.x = cameraRotation.x;
-            renderer.render(scene, camera);
-        }
-
-        init();
+init();
     </script>
 </body>
 </html>
