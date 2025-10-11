@@ -1,80 +1,132 @@
+# 📰 ANADOLU: HABER ZAMAN TÜNELİ  
+### Medya Teknolojileri Hackathonu Projesi
 
-# Medya Teknolojileri Hackathonu Projesi
+Bu proje, kullanıcılara **Anadolu Ajansı (AA)** haberleri üzerinden interaktif bir **“zaman tüneli” deneyimi** sunan, kapsamlı bir web uygulamasıdır.  
 
-Bu proje, Medya Teknolojileri Hackathonu için geliştirilmiş bir haber zaman tüneli uygulamasıdır. Proje, geçmişten günümüze Anadolu Ajansı (AA) haberlerini toplayan, özetleyen ve bu haberlerden video kısa filmler üreten bir sistemden oluşmaktadır.
+Kullanıcılar, seçtikleri bir tarihe giderek o günün haberlerini **3D bir sanat galerisi ortamında** keşfedebilir, haberleri **okuyabilir**, **yapay zeka destekli seslendirme** ile **dinleyebilir** ve hatta **haberlerden üretilmiş video özetlerini** izleyebilirler.  
 
-## Özellikler
+Proje, güçlü bir **Python backend'i** ile etkileyici bir **three.js frontend'ini** bir araya getirerek, medya içeriklerini tüketmek için yenilikçi bir yol sunar.
 
-- **Haber Toplama:** Anadolu Ajansı'nın RSS akışlarından ve Wayback Machine CDX API'si kullanılarak geçmişe dönük haberleri toplar.
-- **Metin Özetleme:** Toplanan haber metinlerini, `nicktimur/mt5-base-turkish-news-summarizer` modeli ve OpenAI GPT-4 kullanarak özetler.
-- **Video Oluşturma:** Belirtilen bir videodan, `faster-whisper` ile metin dökümü oluşturur, OpenAI GPT-4 ile önemli anları belirler ve `moviepy` kullanarak altyazılı kısa videolar oluşturur.
-- **Metin Okuma (TTS):** ElevenLabs API'sini kullanarak verilen metni seslendirir.
-- **Web Arayüzü:** Kullanıcıların belirli bir tarihe giderek o tarihteki haberleri görmelerini sağlayan "Haber Zaman Tüneli" adında bir web arayüzü sunar.
+---
 
-## Teknolojiler
+## 🏛️ Sistem Mimarisi
 
-- **Backend:**
-    - Python
-    - Flask
-    - requests
-    - BeautifulSoup
-    - feedparser
-    - transformers
-    - faster-whisper
-    - moviepy
-    - openai
-    - elevenlabs
-- **Frontend:**
-    - HTML
-    - CSS
-    - JavaScript
+Proje, iki ana bileşenden oluşur:
 
-## Kurulum ve Kullanım
+### Backend (Veri İşleme ve Servisler)
+- **Veri Toplama**: AA'nın geçmiş ve güncel haberlerini toplamak için iki farklı yöntem kullanılır:
+  - **Wayback Machine CDX API**: Arşivlenmiş haberlerin kazınması.
+  - **RSS Akışları**: Güncel haberlerin periyodik olarak taranması.
+- **Veri İşleme ve Özetleme**: 
+  - Ham haber metinleri, **transformers** kütüphanesi ve `nicktimur/mt5-base-turkish-news-summarizer` modeli ile özetlenir.
+  - Özetler, **OpenAI gpt-4o-mini** modeli ile daha akıcı ve okunabilir hale getirilir.
+- **Video Oluşturma**: 
+  - **ffmpeg**, **faster-whisper** ve **moviepy** kullanılarak videoların sesi metne dönüştürülür.
+  - **gpt-4** ile önemli anlar belirlenir ve altyazılı kısa videolar (shorts) oluşturulur.
+- **Text-to-Speech (TTS) API**: 
+  - **Flask** ve **ElevenLabs API** kullanılarak metinler doğal insan sesine dönüştürülür.
 
-1.  **Proje Dosyalarını İndirin:**
-    ```bash
-    git clone https://github.com/kullanici/Medya-Teknolojileri-Hackathonu.git
-    cd Medya-Teknolojileri-Hackathonu
-    ```
+### Frontend (Kullanıcı Arayüzü ve Deneyimi)
+- **Ana Sayfa (index.html)**: 
+  - Eski gazete tasarımına sahip estetik bir giriş sayfası.
+  - Kullanıcıdan tarih seçimi alır ve seçilen tarihi `gallery.html` sayfasına aktarır.
+- **3D Haber Galerisi (gallery.html)**:
+  - **three.js** ile oluşturulmuş sürükleyici bir 3D sanat galerisi.
+  - Seçilen tarihe ait haberler, galeri duvarlarında interaktif **kristal tablolara** dönüştürülür.
+  - Kullanıcılar **W/A/S/D tuşları** ve **fare** ile galeride gezinebilir.
+  - Her tabloya tıklandığında haberin detaylarını (başlık, görsel, tam metin) gösteren bir modal açılır.
+  - Modal içindeki **“Seslendir” butonu**, backend’deki TTS API’sini kullanarak haber metnini sesli okur.
+  - Galeri, kategoriye göre yorum yapan **NPC’ler** (Non-Player Characters) ile canlılık kazanır.
+  - Ana salondan farklı haber kategorileri için özel odalara geçiş sağlayan kapılar bulunur.
 
-2.  **Gerekli Kütüphaneleri Yükleyin:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-    *(Not: `requirements.txt` dosyası projede bulunmamaktadır. Kullanılan kütüphaneler yukarıda listelenmiştir.)*
+---
 
-3.  **API Anahtarlarını Ayarlayın:**
-    - `backend/summarized_data.py` dosyasında `OPENAI_API_KEY` değişkenine OpenAI API anahtarınızı girin.
-    - `backend/generate_video_shorts.py` dosyasında `openai_api_key` değişkenine OpenAI API anahtarınızı girin.
-    - `backend/voice.py` dosyasında `.env` dosyası oluşturarak `ELEVEN_API_KEY` ve `VOICE_ID` değişkenlerini ayarlayın.
+## ✨ Temel Özellikler
+- **İnteraktif 3D Deneyim**: Haberleri sıkıcı bir listede değil, gezilebilir bir 3D galeride keşfedin.
+- **Yapay Zeka Destekli Özetleme**: Karmaşık haber metinleri, son teknoloji NLP modelleriyle kısa ve anlamlı özetlere dönüştürülür.
+- **Otomatik Video “Shorts” Üretimi**: Videolardan en can alıcı kısımlar belirlenip sosyal medyaya uygun kısa videolar hazırlanır.
+- **Doğal Seslendirme**: **ElevenLabs** entegrasyonu ile haber metinleri yüksek kaliteli ve doğal bir sesle dinlenir.
+- **Dinamik Ortam**: Seçilen yılın ruhuna uygun değişen galeri temaları ve NPC’ler ile zenginleştirilmiş atmosfer.
+- **Geçmişe Yolculuk**: **Wayback Machine** entegrasyonu ile geçmiş yıllara ait haberlere erişim.
 
-4.  **Backend Betiklerini Çalıştırın:**
-    - Haberleri toplamak için:
-        ```bash
-        python backend/aa_scraping.py
-        python backend/rss_scraping.py
-        ```
-    - Haberleri özetlemek için:
-        ```bash
-        python backend/summarized_data.py
-        ```
-    - TTS sunucusunu başlatmak için:
-        ```bash
-        python backend/voice.py
-        ```
+---
 
-5.  **Frontend'i Başlatın:**
-    - `frontend/index.html` dosyasını bir web tarayıcısında açın.
-        ```bash
-        npx http-server
-        ```
+## 🛠️ Kullanılan Teknolojiler
 
-## Dosya Açıklamaları
+### Backend
+- **Dil**: Python 3.x
+- **Web Framework**: Flask
+- **Veri Kazıma**:
+  - `requests`: HTTP istekleri için.
+  - `BeautifulSoup4`: HTML parse etmek için.
+  - `feedparser`: RSS akışlarını okumak için.
+- **Doğal Dil İşleme (NLP)**:
+  - `transformers`: Hugging Face modelleri için.
+  - `openai`: GPT-4o-mini ve GPT-4 modellerine erişim.
+- **Video ve Ses İşleme**:
+  - `faster-whisper`: Yüksek performanslı ses-metin dönüştürme.
+  - `moviepy`: Video klip oluşturma ve düzenleme.
+  - `ffmpeg`: Ses ve video işlemleri.
+- **Text-to-Speech (TTS)**:
+  - `elevenlabs`: Metin seslendirme servisi.
+- **Diğer**:
+  - `python-dotenv`: Ortam değişkenlerini yönetmek için.
+  - `numpy`: Video oluşturma işlemlerinde.
+  - `Pillow`: Altyazı görselleri oluşturmak için.
 
-- **`backend/aa_scraping.py`**: Wayback Machine CDX API'sini kullanarak AA haberlerini kazır.
-- **`backend/rss_scraping.py`**: AA RSS akışlarından haberleri kazır.
-- **`backend/summarized_data.py`**: Haberleri özetler.
-- **`backend/generate_video_shorts.py`**: Videolardan kısa filmler oluşturur.
-- **`backend/voice.py`**: Metin okuma (TTS) için Flask API sunucusu.
-- **`frontend/index.html`**: Ana sayfa, "Haber Zaman Tüneli".
-- **`frontend/gallery.html`**: Belirli bir tarihteki haberlerin görüntülendiği galeri sayfası.
+### Frontend
+- **3D Grafik**: three.js
+- **Temel Teknolojiler**: HTML5, CSS3, JavaScript (ES6+)
+
+---
+
+## 🚀 Kurulum ve Çalıştırma
+
+### Adım Adım Kurulum
+1. **Projeyi Klonlayın**:
+   ```bash
+   git clone https://github.com/SevalSorak/Medya-Teknolojileri-Hackathonu.git
+   cd Medya-Teknolojileri-Hackathonu
+   ```
+
+2. **Python Bağımlılıklarını Yükleyin**:
+   ```bash
+   pip install flask flask-cors requests beautifulsoup4 feedparser transformers torch torchvision torchaudio openai faster-whisper moviepy python-dotenv numpy Pillow elevenlabs
+   ```
+   *Not*: `torch` kurulumu sisteminize (CPU/GPU) göre değişiklik gösterebilir. Detaylar için [PyTorch web sitesini](https://pytorch.org/) ziyaret edin.
+
+3. **API Anahtarlarını Yapılandırın**:
+   - **OpenAI**: `backend/summarized_data.py` ve `backend/generate_video_shorts.py` dosyalarındaki `openai_api_key` değişkenine kendi OpenAI API anahtarınızı girin.
+   - **ElevenLabs**: `backend` dizininde `.env` dosyası oluşturun ve içine şu şekilde anahtarlarınızı ekleyin:
+     ```plaintext
+     ELEVEN_API_KEY="YOUR_ELEVENLABS_API_KEY"
+     VOICE_ID="YOUR_CHOSEN_VOICE_ID"
+     ```
+
+4. **Backend Servislerini Çalıştırın**:
+   - **Veri Toplama (İsteğe Bağlı)**:
+     ```bash
+     python backend/aa_scraping.py
+     python backend/rss_scraping.py
+     ```
+     Bu betikler `aa_cdx_verileri.json` ve `aa_haberler.csv` dosyalarını oluşturur/günceller.
+   - **Veri Özetleme (İsteğe Bağlı)**:
+     ```bash
+     python backend/summarized_data.py
+     ```
+     Bu işlem, `data.json` dosyasını okur ve `summarized_data.json` dosyasını oluşturur.
+   - **TTS Sunucusunu Başlatın**:
+     ```bash
+     python backend/voice.py
+     ```
+     Bu komut, `localhost:5000` üzerinde bir API sunucusu başlatır.
+
+5. **Frontend’i Başlatın**:
+   - En basit yöntem: `frontend/index.html` dosyasına çift tıklayarak tarayıcıda açın.
+   - Daha stabil bir deneyim için yerel bir sunucu kullanın:
+     ```bash
+     npx http-server
+     ```
+   - Tarayıcıdan `http://localhost:8080` adresine gidin.
+
+---
