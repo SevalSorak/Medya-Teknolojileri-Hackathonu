@@ -65,6 +65,9 @@ Bu proje, Medya Teknolojileri Hackathonu için geliştirilmiş bir haber zaman t
 
 5.  **Frontend'i Başlatın:**
     - `frontend/index.html` dosyasını bir web tarayıcısında açın.
+        ```bash
+        npx http-server
+        ```
 
 ## Dosya Açıklamaları
 
