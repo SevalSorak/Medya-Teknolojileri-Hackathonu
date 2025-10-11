@@ -3,7 +3,7 @@
 
 Bu proje, kullanıcılara **Anadolu Ajansı (AA)** haberleri üzerinden interaktif bir **“zaman tüneli” deneyimi** sunan, kapsamlı bir web uygulamasıdır.  
 
-Kullanıcılar, seçtikleri bir tarihe giderek o günün haberlerini **3D bir sanat galerisi ortamında** keşfedebilir, haberleri **okuyabilir**, **yapay zeka destekli seslendirme** ile **dinleyebilir** ve hatta **haberlerden üretilmiş video özetlerini** izleyebilirler.  
+Kullanıcılar, seçtikleri bir tarihe giderek o günün haberlerini **3D bir ortamda** keşfedebilir, haberleri **okuyabilir**, **yapay zeka destekli seslendirme** ile **dinleyebilir** ve hatta **haberlerden üretilmiş video özetlerini** izleyebilirler.  
 
 Proje, güçlü bir **Python backend'i** ile etkileyici bir **three.js frontend'ini** bir araya getirerek, medya içeriklerini tüketmek için yenilikçi bir yol sunar.
 
