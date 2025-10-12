@@ -1,6 +1,6 @@
 # 📰 ANADOLU: HABER ZAMAN TÜNELİ  
 ### Medya Teknolojileri Hackathonu Projesi
-@medyahackathonu2025
+@medyahackathonu2025 #medyahackathonu2025
 
 Bu proje, kullanıcılara **Anadolu Ajansı (AA)** haberleri üzerinden interaktif bir **“zaman tüneli” deneyimi** sunan, kapsamlı bir web uygulamasıdır.  
 
