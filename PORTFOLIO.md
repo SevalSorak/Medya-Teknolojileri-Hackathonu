@@ -296,7 +296,7 @@ Bu proje, Medya Teknolojileri Hackathonu 2025 kapsamında geliştirilmiştir. E�
 - **ElevenLabs**: TTS servisi için
 - **Hugging Face**: Türkçe NLP modeli için
 - **Three.js Community**: 3D framework için
-- **Medya Teknolojileri Hackathonu**: Bu platformu sağladığı için
+- **Medya Teknolojileri Hackathonu**: Bu platformu sağladıkları için
 
 ---
 
